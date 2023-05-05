@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class Specimen:
@@ -14,11 +15,23 @@ class Specimen:
         param = self.param + r
         return Specimen(param, self.sigma)
 
-    def evaluate(self, data: np.ndarray) -> float:
+    def evaluate(self, data: pd.DataFrame) -> float:
         a, b, c = self.param
         o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
         sse = (np.sum(np.square(data['Y']-o)))/len(data['Y'])
         return sse
+    
+    def __str__(self) -> str:
+        a,b,c = self.param
+        return f"a:{a} b:{b} c:{c}"
+    
+    def plotdata(self, data: pd.DataFrame) -> None:
+        a, b, c = self.param
+        o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
+        plt.plot(data['X'], o, 'b', label = "Approximation")
+        plt.plot(data['X'], data['Y'], '--r', label = "Original")
+        plt.legend()
+        plt.show()
 
 
 class EvoStrategy:
@@ -26,7 +39,7 @@ class EvoStrategy:
         self.maxiter: int = maxiter
         self.mselim: float = mselim
         self.popsize: int = popsize
-        self.chid_coef: int = child_coef
+        self.child_coef: int = child_coef
         self.approach: str = approach
         self.data: pd.DataFrame = self.read_data(datafilepath)
         self.population: list[Specimen] = []
@@ -48,14 +61,37 @@ class EvoStrategy:
         for parent in self.population:
             for i in range(self.child_coef):
                 children.append(parent.mutate())
+        self.children = children
 
     def evaluate_population(self):
         if self.approach == "mi+lam":
-            population: list[Specimen] = self.children.extend(self.population)
+            population: list[Specimen] = self.population
+            population.extend(self.children)
         elif self.approach == "mi,lam":
             population: list[Specimen] = self.children
         pop_eval = []
         for pop in population:
             pop_eval.append(pop.evaluate(self.data))
-        population = [pop for pop, _ in sorted(zip(population, pop_eval), reverse = True, key = lambda x: x[1])]
+        population = [pop for pop, _ in sorted(zip(population, pop_eval), key = lambda x: x[1])]
         self.population = population[:self.popsize]
+
+    def mainloop(self):
+        self.pop_init()
+        self.evaluate_population()
+        best_individual = self.population[0]
+        i = 0
+        while i < self.maxiter:
+            if best_individual.evaluate(self.data) < self.mselim:
+                break
+            self.child_init()
+            self.evaluate_population()
+            best_individual = self.population[0]
+            print(f"Iteration {i}")
+            i+=1
+        print(best_individual ,f"SSE:{best_individual.evaluate(self.data)}")
+        best_individual.plotdata(self.data)
+        return best_individual
+
+if __name__ == "__main__":
+    Es = EvoStrategy(250, 0.3, 500, 5, "model5.txt")
+    Es.mainloop()
