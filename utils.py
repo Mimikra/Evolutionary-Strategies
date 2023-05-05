@@ -18,8 +18,8 @@ class Specimen:
     def evaluate(self, data: pd.DataFrame) -> float:
         a, b, c = self.param
         o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
-        sse = (np.sum(np.square(data['Y']-o)))/len(data['Y'])
-        return sse
+        mse = (np.sum(np.square(data['Y']-o)))/len(data['Y'])
+        return mse
     
     def __str__(self) -> str:
         a,b,c = self.param
@@ -77,6 +77,7 @@ class EvoStrategy:
 
     def mainloop(self):
         self.pop_init()
+        self.children.extend(self.population)
         self.evaluate_population()
         best_individual = self.population[0]
         i = 0
@@ -86,12 +87,12 @@ class EvoStrategy:
             self.child_init()
             self.evaluate_population()
             best_individual = self.population[0]
-            print(f"Iteration {i}")
+            print(f"Iteration {i+1}")
             i+=1
-        print(best_individual ,f"SSE:{best_individual.evaluate(self.data)}")
+        print(best_individual ,f"MSE:{best_individual.evaluate(self.data)}")
         best_individual.plotdata(self.data)
         return best_individual
 
 if __name__ == "__main__":
-    Es = EvoStrategy(250, 0.3, 500, 5, "model5.txt")
+    Es = EvoStrategy(50, 0.3, 500, 5, "model5.txt", 'mi,lam')
     Es.mainloop()
