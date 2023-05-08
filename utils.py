@@ -1,32 +1,41 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from math import sqrt
 
 
 class Specimen:
-    __slots__ = ("param", "sigma")
-
+    __slots__ = ("param", "sigma", "mse")
+    tau = None
+    data = None
     def __init__(self, param: np.ndarray, sigma: np.ndarray) -> None:
         self.param: np.ndarray[float] = param
         self.sigma: np.ndarray[float] = sigma
+        self.mse: float = self.evaluate()
 
     def mutate(self):
         r = [np.random.normal(0, s) for s in self.sigma]
         param = self.param + r
-        return Specimen(param, self.sigma)
+        r1 = np.exp(Specimen.tau[0]*np.random.normal())
+        r2 = np.exp(Specimen.tau[1]*np.array([np.random.normal() for i in range(len(self.sigma))]))
+        sigma = self.sigma*r2*r1
+        return Specimen(param, sigma)
 
-    def evaluate(self, data: pd.DataFrame) -> float:
+    def evaluate(self) -> float:
         a, b, c = self.param
+        data = Specimen.data
         o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
         mse = (np.sum(np.square(data['Y']-o)))/len(data['Y'])
         return mse
     
     def __str__(self) -> str:
         a,b,c = self.param
-        return f"a:{a} b:{b} c:{c}"
+        s1,s2,s3 = self.sigma
+        return f"a:{a:.3f} b:{b:.3f} c:{c:.3f} \u03C3a:{s1:.3f} \u03C3b:{s2:.3f} \u03C3c:{s3:.3f}"
     
-    def plotdata(self, data: pd.DataFrame) -> None:
+    def plotdata(self) -> None:
         a, b, c = self.param
+        data = Specimen.data
         o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
         plt.plot(data['X'], o, 'b', label = "Approximation")
         plt.plot(data['X'], data['Y'], '--r', label = "Original")
@@ -44,6 +53,7 @@ class EvoStrategy:
         self.data: pd.DataFrame = self.read_data(datafilepath)
         self.population: list[Specimen] = []
         self.children: list[Specimen] = []
+        self.convergence = False
 
     def read_data(self, path: str) -> pd.DataFrame:
         file = pd.read_csv(path, delim_whitespace=True,
@@ -63,6 +73,21 @@ class EvoStrategy:
                 children.append(parent.mutate())
         self.children = children
 
+    def check_convergence(self):
+        parent_eval = []
+        for pop in self.population:
+            parent_eval.append(pop.mse)
+        best_parent_mse = sorted(parent_eval)
+        best_parent_mse = best_parent_mse[0]
+        child_eval = []
+        for pop in self.children:
+            child_eval.append(pop.mse)
+        best_child_mse = sorted(child_eval)
+        best_child_mse = best_child_mse[0]
+        if abs(best_child_mse - best_parent_mse) < self.mselim:
+            self.convergence = True
+        print(f"Diffrence: {abs(best_child_mse - best_parent_mse)}")
+    
     def evaluate_population(self):
         if self.approach == "mi+lam":
             population: list[Specimen] = self.population
@@ -71,28 +96,29 @@ class EvoStrategy:
             population: list[Specimen] = self.children
         pop_eval = []
         for pop in population:
-            pop_eval.append(pop.evaluate(self.data))
+            pop_eval.append(pop.mse)
         population = [pop for pop, _ in sorted(zip(population, pop_eval), key = lambda x: x[1])]
         self.population = population[:self.popsize]
 
     def mainloop(self):
+        Specimen.tau = [1/(sqrt(2*self.popsize)), (1/sqrt(2*(sqrt(self.popsize))))]
+        Specimen.data = self.data
         self.pop_init()
         self.children.extend(self.population)
         self.evaluate_population()
         best_individual = self.population[0]
-        i = 0
-        while i < self.maxiter:
-            if best_individual.evaluate(self.data) < self.mselim:
-                break
+        for i in range(self.maxiter):
             self.child_init()
+            self.check_convergence()
+            if self.convergence:
+                break
             self.evaluate_population()
             best_individual = self.population[0]
-            print(f"Iteration {i+1}")
-            i+=1
-        print(best_individual ,f"MSE:{best_individual.evaluate(self.data)}")
-        best_individual.plotdata(self.data)
+            print(f"Iteration {i+1}, MSE: {best_individual.mse:.4f}", best_individual)
+        print(f"Ended on iteration {i+1} MSE:{best_individual.mse:.6f}", best_individual)
+        best_individual.plotdata()
         return best_individual
 
 if __name__ == "__main__":
-    Es = EvoStrategy(50, 0.3, 500, 5, "model5.txt", 'mi,lam')
+    Es = EvoStrategy(150, 10**-5, 500, 5, "model5.txt", 'mi,lam')
     Es.mainloop()
