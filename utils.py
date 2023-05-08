@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from math import sqrt
+from time import perf_counter 
 
 
 class Specimen:
@@ -31,29 +32,31 @@ class Specimen:
     def __str__(self) -> str:
         a,b,c = self.param
         s1,s2,s3 = self.sigma
-        return f"a:{a:.3f} b:{b:.3f} c:{c:.3f} \u03C3a:{s1:.3f} \u03C3b:{s2:.3f} \u03C3c:{s3:.3f}"
+        return f"a:{a:.4f} b:{b:.4f} c:{c:.4f} \u03C3a:{s1:.5f} \u03C3b:{s2:.5f} \u03C3c:{s3:.5f}"
     
     def plotdata(self) -> None:
         a, b, c = self.param
         data = Specimen.data
         o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
-        plt.plot(data['X'], o, 'b', label = "Approximation")
-        plt.plot(data['X'], data['Y'], '--r', label = "Original")
+        plt.plot(data['X'], data['Y'], 'k', label = "Original", linewidth = 1.5, alpha = 0.9)
+        plt.plot(data['X'], o, 'c', label = "Approximation" ,linewidth = 2, alpha = 0.45)
         plt.legend()
         plt.show()
 
 
 class EvoStrategy:
-    def __init__(self, maxiter: int, mselim: float, popsize: int, child_coef: int, datafilepath: str, approach: str = "mi+lam") -> None:
+    def __init__(self, maxiter: int, mselim: float, popsize: int, child_coef: int, datafilepath: str, approach: str = "mi+lam", chromlen: int = 6) -> None:
         self.maxiter: int = maxiter
         self.mselim: float = mselim
         self.popsize: int = popsize
         self.child_coef: int = child_coef
         self.approach: str = approach
+        self.chromlen: int = chromlen
         self.data: pd.DataFrame = self.read_data(datafilepath)
         self.population: list[Specimen] = []
         self.children: list[Specimen] = []
         self.convergence = False
+        self.differ = 0
 
     def read_data(self, path: str) -> pd.DataFrame:
         file = pd.read_csv(path, delim_whitespace=True,
@@ -86,7 +89,7 @@ class EvoStrategy:
         best_child_mse = best_child_mse[0]
         if abs(best_child_mse - best_parent_mse) < self.mselim:
             self.convergence = True
-        print(f"Diffrence: {abs(best_child_mse - best_parent_mse)}")
+        self.differ = abs(best_child_mse - best_parent_mse)
     
     def evaluate_population(self):
         if self.approach == "mi+lam":
@@ -101,7 +104,8 @@ class EvoStrategy:
         self.population = population[:self.popsize]
 
     def mainloop(self):
-        Specimen.tau = [1/(sqrt(2*self.popsize)), (1/sqrt(2*(sqrt(self.popsize))))]
+        start = perf_counter()
+        Specimen.tau = [1/(sqrt(2*self.chromlen)), (1/sqrt(2*(sqrt(self.chromlen))))]
         Specimen.data = self.data
         self.pop_init()
         self.children.extend(self.population)
@@ -114,11 +118,14 @@ class EvoStrategy:
                 break
             self.evaluate_population()
             best_individual = self.population[0]
-            print(f"Iteration {i+1}, MSE: {best_individual.mse:.4f}", best_individual)
+            print(f"Iteration {i+1 :>2}, MSE: {best_individual.mse:.4f}", best_individual)
+            print(f"Difference between best parent and offspring: {self.differ:.7f}\n")
         print(f"Ended on iteration {i+1} MSE:{best_individual.mse:.6f}", best_individual)
+        print(f"Difference between best parent and offspring: {self.differ}")
+        print(f"time: {perf_counter()-start}") 
         best_individual.plotdata()
         return best_individual
 
 if __name__ == "__main__":
-    Es = EvoStrategy(150, 10**-5, 500, 5, "model5.txt", 'mi,lam')
+    Es = EvoStrategy(150, 10**-5, 500, 5, "model5.txt", 'mi+lam')
     Es.mainloop()
