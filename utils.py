@@ -38,8 +38,9 @@ class Specimen:
         a, b, c = self.param
         data = Specimen.data
         o = a*(np.square(data['X'])-b*np.cos(c*np.pi*data['X']))
-        plt.plot(data['X'], data['Y'], 'k', label = "Original", linewidth = 1.5, alpha = 0.9)
-        plt.plot(data['X'], o, 'c', label = "Approximation" ,linewidth = 2, alpha = 0.45)
+        # plt.plot(data['X'], data['Y'], color = "#000000", label = "Original", linewidth = 1, alpha = 0.95)
+        plt.plot(data['X'], data['Y'],'o', color = "#000000", label = "Original", markersize = 1.5, alpha = 0.95)
+        plt.plot(data['X'], o, color = "#00FFFF", label = "Approximation" ,linewidth = 1.7, alpha = 0.5)
         plt.legend()
         plt.show()
 
@@ -65,8 +66,8 @@ class EvoStrategy:
 
     def pop_init(self):
         for i in range(self.popsize):
-            param = np.random.uniform(-10, 10, 3)
-            sigma = np.random.uniform(0, 10, 3)
+            param = np.random.uniform(-10, 10, self.chromlen//2)
+            sigma = np.random.uniform(0, 10, self.chromlen//2)
             self.population.append(Specimen(param, sigma))
 
     def child_init(self):
@@ -111,6 +112,9 @@ class EvoStrategy:
         self.children.extend(self.population)
         self.evaluate_population()
         best_individual = self.population[0]
+        UP = "\x1B[3A"
+        CLR = "\x1B[0K"
+        print("\n\n")
         for i in range(self.maxiter):
             self.child_init()
             self.check_convergence()
@@ -118,14 +122,36 @@ class EvoStrategy:
                 break
             self.evaluate_population()
             best_individual = self.population[0]
-            print(f"Iteration {i+1 :>2}, MSE: {best_individual.mse:.4f}", best_individual)
-            print(f"Difference between best parent and offspring: {self.differ:.7f}\n")
+            
+            line1 = f"Iteration {i+1 :>2}, MSE: {best_individual.mse:.4f} " + str(best_individual) + '\n'
+            line2 = f"Difference between best parent and offspring: {self.differ:.7f}"
+            print(f"{UP}{line1}{CLR}{line2}{CLR}\n",end="\n")
         print(f"Ended on iteration {i+1} MSE:{best_individual.mse:.6f}", best_individual)
         print(f"Difference between best parent and offspring: {self.differ}")
         print(f"time: {perf_counter()-start}") 
         best_individual.plotdata()
-        return best_individual
+        return (i+1, best_individual.mse)
 
 if __name__ == "__main__":
-    Es = EvoStrategy(150, 10**-5, 500, 5, "model5.txt", 'mi+lam')
+    Es = EvoStrategy(150, 10**-5, 500, 5, "model5.txt", 'mi,lam')
     Es.mainloop()
+
+    # popsizes = [50, 200, 500, 800]
+    # modes = ['mi+lam', 'mi,lam']
+    # kids = [1, 2, 5, 8]
+    # repeat = 5
+    # with open('data.txt', 'w') as file:
+    #     file.write("Mode;Popsize;Offspring;MeanIter;MeanMse\n")
+    #     for mode in modes:
+    #         for popsize in popsizes:
+    #             for kid in kids:
+    #                 iterat = []
+    #                 mses = []
+    #                 for i in range(repeat):
+    #                     es = EvoStrategy(250, 10**-5, popsize, kid, 'model5.txt', mode)
+    #                     it, mse = es.mainloop()
+    #                     iterat.append(it)
+    #                     mses.append(mse)
+    #                 mean_iter = round(sum(iterat)/repeat, 2)
+    #                 mean_mse = round(sum(mses)/repeat, 4)
+    #                 file.write(f'{mode};{popsize};{kid};{mean_iter};{mean_mse}\n')
